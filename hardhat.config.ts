@@ -29,6 +29,16 @@ const config: HardhatUserConfig = {
       gasPrice: 8000000000,
       timeout: 100000
     },
+    kovan: {
+      url: process.env.KOVAN_RPC_URL || "",
+      accounts: {
+        mnemonic: process.env.MNEMONIC,
+        count: 10
+      },
+      gas: 2100000,
+      gasPrice: 8000000000,
+      timeout: 100000
+    },
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,

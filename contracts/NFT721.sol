@@ -1,6 +1,8 @@
 //SPDX-License-Identifier: Unlicense
 
 pragma solidity ^0.8.0;
+
+import "./IERC721Mint.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
@@ -40,6 +42,8 @@ contract NFT721 is ERC721Enumerable, AccessControl {
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Enumerable, AccessControl) returns (bool) {
-        return super.supportsInterface(interfaceId);
+        return 
+                interfaceId == type(IERC721Mint).interfaceId || 
+                super.supportsInterface(interfaceId);
     }
 }

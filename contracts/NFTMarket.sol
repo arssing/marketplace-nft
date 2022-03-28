@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 
 import "./IERC721Mint.sol";
-import "./EnumDeclaration.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
@@ -16,6 +15,19 @@ contract NFTMarket is IERC721Receiver {
     event ListOnAuction(address indexed _owner, uint _tokenId, uint _minPrice);
     event MakeBid(address indexed _bidder, uint _tokenId, uint _newPrice);
     event FinishAuction(address indexed _seller, uint _tokenId, uint _price, bool _success);
+
+    enum OrderStatus {
+        unknown,
+        onSale,
+        cancelled,
+        sold
+    }
+
+    enum AuctionStatus {
+        unknown,
+        onAuction,
+        finished
+    }
 
     struct Order {
         address seller;
@@ -32,8 +44,8 @@ contract NFTMarket is IERC721Receiver {
         uint startTime;
     }
 
-    IERC721Mint NFT;
-    IERC20 token;
+    address NFT;
+    address token;
     uint32 minBids;
     uint minAuctionTime;
 
@@ -41,19 +53,19 @@ contract NFTMarket is IERC721Receiver {
     mapping(uint => Auction) public auctions;
 
     constructor (address _NFTContract, address _ERC20Contract, uint _minAuctionTime, uint32 _minBids) {
-        NFT = IERC721Mint(_NFTContract);
-        token = IERC20(_ERC20Contract);
+        NFT = _NFTContract;
+        token = _ERC20Contract;
         minAuctionTime = _minAuctionTime;
         minBids = _minBids;
     }
 
     function createItem(string memory _tokenURI, address _owner) public {
-        uint tokenId = NFT.mint(_owner, _tokenURI);
+        uint tokenId = IERC721Mint(NFT).mint(_owner, _tokenURI);
         emit NFTCreated(_owner, tokenId);
     }
 
     function listItem(uint tokenId, uint price) public {
-        NFT.safeTransferFrom(msg.sender, address(this), tokenId);
+        IERC721Mint(NFT).safeTransferFrom(msg.sender, address(this), tokenId);
         
         orders[tokenId].seller = msg.sender;
         orders[tokenId].status = OrderStatus.onSale;
@@ -66,7 +78,7 @@ contract NFTMarket is IERC721Receiver {
         require(orders[tokenId].status == OrderStatus.onSale, "NFTMarket::cancel:token not onSale");
         require(orders[tokenId].seller == msg.sender, "NFTMarket::cancel:you are not a seller");
         
-        NFT.safeTransferFrom(address(this), msg.sender, tokenId);
+        IERC721Mint(NFT).safeTransferFrom(address(this), msg.sender, tokenId);
         orders[tokenId].status = OrderStatus.cancelled;
 
         emit Cancelled(msg.sender, tokenId);
@@ -75,15 +87,15 @@ contract NFTMarket is IERC721Receiver {
     function buyItem(uint tokenId) public {
         require(orders[tokenId].status == OrderStatus.onSale, "NFTMarket::cancel:token not onSale");
 
-        token.transferFrom(msg.sender, orders[tokenId].seller, orders[tokenId].price);
-        NFT.safeTransferFrom(address(this), msg.sender, tokenId);
+        IERC20(token).transferFrom(msg.sender, orders[tokenId].seller, orders[tokenId].price);
+        IERC721Mint(NFT).safeTransferFrom(address(this), msg.sender, tokenId);
         orders[tokenId].status = OrderStatus.sold;
 
         emit BuyItem(orders[tokenId].seller, msg.sender, tokenId, orders[tokenId].price);
     }
 
     function listItemOnAuction(uint tokenId, uint minPrice) public {
-        NFT.safeTransferFrom(msg.sender, address(this), tokenId);
+        IERC721Mint(NFT).safeTransferFrom(msg.sender, address(this), tokenId);
 
         auctions[tokenId].seller = msg.sender;
         auctions[tokenId].minPrice = minPrice;
@@ -97,10 +109,10 @@ contract NFTMarket is IERC721Receiver {
         require(auctions[tokenId].status == AuctionStatus.onAuction, "NFTMarket::makeBid:token not onAuction");
         require(auctions[tokenId].minPrice < price, "NFTMarket::makeBid:your bid is too small");
 
-        token.transferFrom(msg.sender, address(this), price);
+        IERC20(token).transferFrom(msg.sender, address(this), price);
 
         if (auctions[tokenId].numBids != 0) {
-            token.transfer(auctions[tokenId].lastBidder, auctions[tokenId].minPrice);
+            IERC20(token).transfer(auctions[tokenId].lastBidder, auctions[tokenId].minPrice);
         }
 
         auctions[tokenId].lastBidder = msg.sender;
@@ -118,16 +130,16 @@ contract NFTMarket is IERC721Receiver {
 
         if (auctions[tokenId].numBids < minBids) {
             success = false;
-            NFT.safeTransferFrom(address(this), auctions[tokenId].seller, tokenId);
+            IERC721Mint(NFT).safeTransferFrom(address(this), auctions[tokenId].seller, tokenId);
 
             if (auctions[tokenId].numBids != 0) {
-                token.transfer(auctions[tokenId].lastBidder, auctions[tokenId].minPrice);
+                IERC20(token).transfer(auctions[tokenId].lastBidder, auctions[tokenId].minPrice);
             }
 
         } else {
             success = true;
-            NFT.safeTransferFrom(address(this), auctions[tokenId].lastBidder, tokenId);
-            token.transfer(auctions[tokenId].seller, auctions[tokenId].minPrice);
+            IERC721Mint(NFT).safeTransferFrom(address(this), auctions[tokenId].lastBidder, tokenId);
+            IERC20(token).transfer(auctions[tokenId].seller, auctions[tokenId].minPrice);
         }
 
         auctions[tokenId].numBids = 0;
